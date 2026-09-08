@@ -6,6 +6,15 @@
 是平级关系而非上下游——`load` 不依赖、不 import 它, 待存储的 DataFrame 可以
 来自任何地方。
 
+## 安装
+
+作为私有 GitHub 仓库，在其他项目里用 `uv add` 直接从 git 安装：
+
+```bash
+# 装最新 main
+uv add "git+https://github.com/20070316lbw-netizen/load.git"
+```
+
 ## 结构
 
 - `load._parquet.write_parquet(df, path)`: 唯一的落盘入口, 自动创建父目录;
