@@ -3,17 +3,23 @@ from __future__ import annotations
 
 import pandas as pd
 
-from load._parquet import write_parquet
+from load._parquet import read_parquet, write_parquet
 from load.about_constituents import save_constituents
 from load.about_fundamentals import (
     save_fundamentals_long,
     save_fundamentals_multiindex,
     to_fundamentals_multiindex,
 )
+from load.about_listings import save_listings
 from load.about_prices import (
     save_prices_long,
     save_prices_multiindex,
     to_prices_multiindex,
+)
+from load.about_riskfree import (
+    save_riskfree_long,
+    save_riskfree_multiindex,
+    to_riskfree_multiindex,
 )
 
 
@@ -28,6 +34,27 @@ def _sample_prices() -> pd.DataFrame:
             "close": [1.2, 2.2, 1.3],
             "adj_close": [1.2, 2.2, 1.3],
             "volume": [100, 200, 150],
+        }
+    )
+
+
+def _sample_riskfree() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-02"]),
+            "series": ["DGS1MO", "DGS1MO", "TB3MS"],
+            "value": [5.30, 5.31, 5.28],
+        }
+    )
+
+
+def _sample_listings() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "ticker": ["AAPL", "MSFT"],
+            "cik": [320193, 789019],
+            "name": ["Apple Inc.", "MICROSOFT CORP"],
+            "exchange": ["Nasdaq", "Nasdaq"],
         }
     )
 
@@ -126,3 +153,49 @@ def test_save_constituents(tmp_path):
     path = save_constituents(tmp_path / "constituents.parquet", df)
 
     pd.testing.assert_frame_equal(pd.read_parquet(path), df)
+
+
+def test_read_parquet_roundtrips_long_and_multiindex(tmp_path):
+    long_df = _sample_prices()
+    long_path = write_parquet(long_df, tmp_path / "long.parquet")
+    pd.testing.assert_frame_equal(read_parquet(long_path), long_df)
+
+    mi_df = to_prices_multiindex(long_df)
+    mi_path = write_parquet(mi_df, tmp_path / "mi.parquet")
+    result = read_parquet(mi_path)
+    assert isinstance(result.index, pd.MultiIndex)
+    pd.testing.assert_frame_equal(result, mi_df)
+
+
+def test_to_riskfree_multiindex_preserves_data():
+    df = _sample_riskfree()
+    mi = to_riskfree_multiindex(df)
+
+    assert mi.index.names == ["date", "series"]
+    assert len(mi) == len(df)
+    assert set(mi.columns) == set(df.columns) - {"date", "series"}
+
+
+def test_save_riskfree_long_and_multiindex(tmp_path):
+    df = _sample_riskfree()
+
+    long_path = save_riskfree_long(tmp_path / "rf_long.parquet", df)
+    mi_path = save_riskfree_multiindex(tmp_path / "rf_mi.parquet", df)
+
+    pd.testing.assert_frame_equal(pd.read_parquet(long_path), df)
+    assert isinstance(pd.read_parquet(mi_path).index, pd.MultiIndex)
+
+
+def test_to_riskfree_multiindex_custom_columns():
+    df = _sample_riskfree().rename(columns={"date": "dt", "series": "tenor"})
+    mi = to_riskfree_multiindex(df, date_col="dt", series_col="tenor")
+
+    assert mi.index.names == ["dt", "tenor"]
+    assert len(mi) == len(df)
+
+
+def test_save_listings(tmp_path):
+    df = _sample_listings()
+    path = save_listings(tmp_path / "listings.parquet", df)
+
+    pd.testing.assert_frame_equal(read_parquet(path), df)
