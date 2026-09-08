@@ -2,9 +2,16 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from load._parquet import read_parquet, write_parquet
 from load.about_constituents import save_constituents
+from load.about_factors import (
+    save_factors_long,
+    save_factors_multiindex,
+    to_factors_long,
+    to_factors_multiindex,
+)
 from load.about_fundamentals import (
     save_fundamentals_long,
     save_fundamentals_multiindex,
@@ -57,6 +64,18 @@ def _sample_listings() -> pd.DataFrame:
             "exchange": ["Nasdaq", "Nasdaq"],
         }
     )
+
+
+def _sample_factor_series() -> pd.Series:
+    index = pd.MultiIndex.from_tuples(
+        [
+            (pd.Timestamp("2024-01-02"), "AAPL"),
+            (pd.Timestamp("2024-01-02"), "MSFT"),
+            (pd.Timestamp("2024-01-03"), "AAPL"),
+        ],
+        names=["date", "ticker"],
+    )
+    return pd.Series([0.1, 0.2, 0.15], index=index)
 
 
 def _sample_fundamentals() -> pd.DataFrame:
@@ -199,3 +218,51 @@ def test_save_listings(tmp_path):
     path = save_listings(tmp_path / "listings.parquet", df)
 
     pd.testing.assert_frame_equal(read_parquet(path), df)
+
+
+def test_to_factors_long_from_series():
+    s = _sample_factor_series()
+    df = to_factors_long(s, "mom_12_1")
+
+    assert list(df.columns) == ["date", "ticker", "factor", "value"]
+    assert (df["factor"] == "mom_12_1").all()
+    assert len(df) == len(s)
+    assert df["value"].tolist() == s.tolist()
+
+
+def test_to_factors_long_rejects_non_multiindex():
+    s = pd.Series([0.1, 0.2], index=["AAPL", "MSFT"])
+    with pytest.raises(ValueError):
+        to_factors_long(s, "mom_12_1")
+
+
+def test_to_factors_multiindex_allows_duplicate_index():
+    long_mom = to_factors_long(_sample_factor_series(), "mom_12_1")
+    long_vol = to_factors_long(_sample_factor_series(), "vol_3m")
+    combined = pd.concat([long_mom, long_vol], ignore_index=True)
+
+    mi = to_factors_multiindex(combined)
+
+    assert mi.index.names == ["date", "ticker"]
+    # 同一 (date, ticker) 对应两条不同 factor 的记录, 索引允许重复
+    assert mi.index.duplicated().any()
+
+
+def test_save_factors_long_and_multiindex(tmp_path):
+    df = to_factors_long(_sample_factor_series(), "mom_12_1")
+
+    long_path = save_factors_long(tmp_path / "factors_long.parquet", df)
+    mi_path = save_factors_multiindex(tmp_path / "factors_mi.parquet", df)
+
+    pd.testing.assert_frame_equal(pd.read_parquet(long_path), df)
+    assert isinstance(pd.read_parquet(mi_path).index, pd.MultiIndex)
+
+
+def test_to_factors_multiindex_custom_columns():
+    df = to_factors_long(_sample_factor_series(), "mom_12_1").rename(
+        columns={"date": "dt", "ticker": "symbol"}
+    )
+    mi = to_factors_multiindex(df, date_col="dt", ticker_col="symbol")
+
+    assert mi.index.names == ["dt", "symbol"]
+    assert len(mi) == len(df)

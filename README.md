@@ -30,6 +30,9 @@ from load import (
     save_fundamentals_multiindex,
     save_riskfree_long,
     save_riskfree_multiindex,
+    to_factors_long,
+    save_factors_long,
+    save_factors_multiindex,
     read_parquet,
 )
 
@@ -49,6 +52,14 @@ save_fundamentals_multiindex("data/fundamentals_by_period_ticker.parquet", funda
 
 save_riskfree_long("data/riskfree_long.parquet", riskfree_df)
 save_riskfree_multiindex("data/riskfree_by_date_series.parquet", riskfree_df)
+
+# 因子: 因子包(比如 momfactor)算出来的是一个 [date, ticker] MultiIndex
+# Series, 不是长表, 所以先用 to_factors_long 转成 tidy long 格式
+# [date, ticker, factor, value], 再存(同一 (date, ticker) 通常对应多个
+# factor, 存法跟 fundamentals 一样不做透视/聚合)
+momentum_long = to_factors_long(momentum_series, "mom_12_1")
+save_factors_long("data/factors_long.parquet", momentum_long)
+save_factors_multiindex("data/factors_by_date_ticker.parquet", momentum_long)
 
 # 如果 df 里日期/代码列不叫 date/ticker(比如叫 dt/symbol), 不用现改列名,
 # 传参覆盖就行:
@@ -76,6 +87,7 @@ prices_back = read_parquet("data/prices_long.parquet")
 | `about_prices` | 行情 | `to_prices_multiindex()` / `save_prices_long()` / `save_prices_multiindex()` | 长表 `[date, ticker, ...]`; MultiIndex 按 `[date, ticker]` 建索引; 列名不叫 `date`/`ticker` 时可用 `date_col`/`ticker_col` 覆盖 |
 | `about_fundamentals` | 基本面 | `to_fundamentals_multiindex()` / `save_fundamentals_long()` / `save_fundamentals_multiindex()` | 长表 `[ticker, concept, period_end, ...]`; MultiIndex 按 `[period_end, ticker]` 建索引(同一 `(period_end, ticker)` 可能对应多个 `concept`, 索引不保证唯一); 列名不叫 `period_end`/`ticker` 时可用对应参数覆盖 |
 | `about_riskfree` | 无风险利率 | `to_riskfree_multiindex()` / `save_riskfree_long()` / `save_riskfree_multiindex()` | 长表 `[date, series, value]`; MultiIndex 按 `[date, series]` 建索引; 列名不叫 `date`/`series` 时可用 `date_col`/`series_col` 覆盖 |
+| `about_factors` | 因子(比如 momfactor 算出来的动量) | `to_factors_long()` / `to_factors_multiindex()` / `save_factors_long()` / `save_factors_multiindex()` | 唯一一个入口是 Series 而不是长表: `to_factors_long(s, factor)` 把因子包返回的 `[date, ticker]` MultiIndex Series 转成长表 `[date, ticker, factor, value]`(`factor` 参数就是因子名, 比如 `"mom_12_1"`); 之后跟其他模块一样有长表/MultiIndex 两种存法, `[date, ticker]` 索引同样不保证唯一(同一天同一只票可能有多个 factor) |
 
 所有公开 API 也可直接从 `load` 顶层导入, 例如 `from load import save_prices_long`。
 

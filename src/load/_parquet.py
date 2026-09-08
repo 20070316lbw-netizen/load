@@ -49,4 +49,4 @@ def read_parquet(path: str | Path) -> pd.DataFrame:
     Raises:
         FileNotFoundError: path 不存在。
     """
-    return pd.read_parquet(Path(path), engine="pyarrow")
+    return pd.read_parquet(Path(path), engine="pyarrow") # type: ignore

@@ -15,6 +15,10 @@ sources 等抓取包是平级关系而非上下游——不依赖、不 import �
 
     save_listings                   -- 存交易所归属信息
 
+    to_factors_long                 -- [date, ticker] MultiIndex Series -> 因子长表
+    save_factors_long               -- 存因子长表
+    save_factors_multiindex         -- 存因子 MultiIndex 版本
+
     to_prices_multiindex            -- 长表 -> [date, ticker] MultiIndex
     save_prices_long                -- 存长表
     save_prices_multiindex          -- 存 MultiIndex 版本
@@ -31,6 +35,12 @@ from __future__ import annotations
 
 from load._parquet import read_parquet, write_parquet
 from load.about_constituents import save_constituents
+from load.about_factors import (
+    save_factors_long,
+    save_factors_multiindex,
+    to_factors_long,
+    to_factors_multiindex,
+)
 from load.about_fundamentals import (
     save_fundamentals_long,
     save_fundamentals_multiindex,
@@ -51,6 +61,8 @@ from load.about_riskfree import (
 __all__ = [
     "read_parquet",
     "save_constituents",
+    "save_factors_long",
+    "save_factors_multiindex",
     "save_fundamentals_long",
     "save_fundamentals_multiindex",
     "save_listings",
@@ -58,6 +70,8 @@ __all__ = [
     "save_prices_multiindex",
     "save_riskfree_long",
     "save_riskfree_multiindex",
+    "to_factors_long",
+    "to_factors_multiindex",
     "to_fundamentals_multiindex",
     "to_prices_multiindex",
     "to_riskfree_multiindex",
