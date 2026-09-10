@@ -4,10 +4,11 @@
 
 个人量化数据存储包, 使用 `pyarrow` 对数据以 `.parquet` 文件形式存取。
 
-**这个仓库只做一件事：把调用方传入的 DataFrame 存成 `.parquet` 文件, 或者把
-它读回来**。不含任何数据清洗、也不做任何抓取。与抓取用的
-[`sources`](https://github.com/20070316lbw-netizen/sources) 是平级关系而非
-上下游——`load` 不依赖、不 import 它, 待存储的 DataFrame 可以来自任何地方。
+**把调用方传入的 DataFrame 存成 `.parquet` 文件, 或者把
+它读回来**
+
+不含任何数据清洗、也不做任何抓取。与抓取用的
+[`sources`](https://github.com/20070316lbw-netizen/sources) 是平级关系
 
 ## 安装
 
