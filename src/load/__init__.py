@@ -5,11 +5,14 @@
 sources 等抓取包是平级关系而非上下游——不依赖、不 import 任何抓取包,
 传入 save_* 的 DataFrame 可以来自任何地方。prices/fundamentals/riskfree
 各自额外提供一份按两列建 MultiIndex 的版本, 长表和 MultiIndex 版本可以
-分别单独存储。
+分别单独存储。另外提供 cached_call, 给任意返回 DataFrame 的函数(比如
+sources 里的抓取函数)包一层 parquet 缓存, 同样不依赖任何抓取包。
 
 公开 API:
     write_parquet                  -- 通用 parquet 存储(唯一落盘入口)
     read_parquet                   -- 通用 parquet 读取(唯一读取入口)
+    cached_call                     -- 给任意返回 DataFrame 的函数包一层 parquet 缓存
+    invalidate                      -- 删除 cached_call 用到的缓存文件
 
     save_constituents               -- 存成分股
 
@@ -57,8 +60,11 @@ from load.about_riskfree import (
     save_riskfree_multiindex,
     to_riskfree_multiindex,
 )
+from load.cache import cached_call, invalidate
 
 __all__ = [
+    "cached_call",
+    "invalidate",
     "read_parquet",
     "save_constituents",
     "save_factors_long",

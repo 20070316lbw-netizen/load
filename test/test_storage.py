@@ -1,6 +1,9 @@
 """落盘逻辑的单元测试, 全部使用手造的小 DataFrame, 不触发任何网络请求。"""
 from __future__ import annotations
 
+import os
+import time
+
 import pandas as pd
 import pytest
 
@@ -266,3 +269,87 @@ def test_to_factors_multiindex_custom_columns():
 
     assert mi.index.names == ["dt", "symbol"]
     assert len(mi) == len(df)
+
+
+def test_cached_call_writes_and_reads_cache(tmp_path):
+    from load.cache import cached_call
+
+    calls = []
+
+    def fetch(ticker):
+        calls.append(ticker)
+        return pd.DataFrame({"ticker": [ticker], "value": [1]})
+
+    path = tmp_path / "cache.parquet"
+
+    first = cached_call(fetch, path, "AAPL")
+    second = cached_call(fetch, path, "AAPL")
+
+    assert path.exists()
+    assert calls == ["AAPL"]  # 第二次直接读缓存, fetch 只被调用一次
+    pd.testing.assert_frame_equal(first, second)
+
+
+def test_cached_call_force_refresh_bypasses_cache(tmp_path):
+    from load.cache import cached_call
+
+    calls = []
+
+    def fetch():
+        calls.append(len(calls))
+        return pd.DataFrame({"value": [len(calls)]})
+
+    path = tmp_path / "cache.parquet"
+
+    cached_call(fetch, path)
+    cached_call(fetch, path)
+    cached_call(fetch, path, force_refresh=True)
+
+    assert calls == [0, 1]  # 第二次命中缓存跳过, 第三次 force_refresh 强制重抓
+
+
+def test_cached_call_respects_ttl(tmp_path):
+    from load.cache import cached_call
+
+    calls = []
+
+    def fetch():
+        calls.append(len(calls))
+        return pd.DataFrame({"value": [len(calls)]})
+
+    path = tmp_path / "cache.parquet"
+
+    cached_call(fetch, path, ttl=3600)
+    cached_call(fetch, path, ttl=3600)  # 未过期, 命中缓存
+    assert calls == [0]
+
+    old_time = time.time() - 7200
+    os.utime(path, (old_time, old_time))
+
+    cached_call(fetch, path, ttl=3600)  # 已过期, 重新抓取
+    assert calls == [0, 1]
+
+
+def test_cached_call_propagates_fetch_errors_without_writing_cache(tmp_path):
+    from load.cache import cached_call
+
+    def fetch():
+        raise RuntimeError("boom")
+
+    path = tmp_path / "cache.parquet"
+
+    with pytest.raises(RuntimeError):
+        cached_call(fetch, path)
+
+    assert not path.exists()
+
+
+def test_invalidate_removes_existing_cache_file(tmp_path):
+    from load.cache import invalidate
+
+    path = tmp_path / "cache.parquet"
+    path.write_text("not really parquet, just needs to exist")
+
+    assert invalidate(path) is True
+    assert not path.exists()
+    assert invalidate(path) is False
